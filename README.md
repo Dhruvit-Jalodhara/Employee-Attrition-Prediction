@@ -2,6 +2,8 @@
 
 An interactive, premium Machine Learning web application built using **Streamlit** to predict employee attrition risk, run batch evaluations, and analyze key indicators of workforce turnover. Powered by a hyperparameter-tuned classification pipeline, this dashboard provides HR departments and executive leaders with actionable insights to design effective employee retention strategies.
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://employee-attrition-prediction-jqifhp6t4lyjdotrofvpmd.streamlit.app)
+
 ---
 
 ## 🚀 Key Modules & Features
