@@ -20,7 +20,7 @@ Powered by a hyperparameter-tuned **Logistic Regression** pipeline with balanced
 
 ## 🚀 Core Modules & Features
 
-The application is structured into three dedicated modules to streamline HR decision-making:
+The application is structured into two dedicated modules to streamline HR decision-making:
 
 ### 1. Individual Risk Evaluator (Single Employee Predictor)
 * **Comprehensive Inputs**: Survey inputs for over 30 employee attributes grouped into logical, collapsible sections:
@@ -39,14 +39,6 @@ The application is structured into three dedicated modules to streamline HR deci
 * **Aggregated Summaries**: Displays key high-level metrics (Total Employees, High-Risk Counts, and Average Attrition Probability) in metric cards.
 * **Turnover Visualizations**: Renders risk distribution pie charts and probability score histograms.
 * **Enriched Export**: Download the results as a CSV file appended with `Attrition_Prediction` and `Attrition_Probability` columns.
-
-### 3. HR Insights Dashboard (Historical Exploratory Data)
-* **Key Performance Indicators**: Summary metrics showing total historical records, baseline attrition rate, average salary, and average employee age.
-* **Interactive Breakdown Charts**: High-performance Plotly visual graphs depicting attrition trends across:
-  * Department & Job Role
-  * Overtime Requirements & Marital Status
-  * Monthly Income distribution (Box Plots)
-  * Employee Satisfaction, Environment Satisfaction, and Work-Life Balance scores.
 
 ---
 

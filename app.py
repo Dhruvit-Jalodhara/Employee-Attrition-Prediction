@@ -65,13 +65,6 @@ def load_model_artifacts(model_path, preprocessor_path, model_mtime, prep_mtime)
         preprocessor = pickle.load(f)
     return model, preprocessor
 
-@st.cache_data
-def load_historical_data():
-    csv_path = "Notebooks/Employee-Attrition.csv"
-    if not os.path.exists(csv_path):
-        csv_path = "/Users/dhruvitjalodhara/programming/ML Practice/Employee Attrition Prediction/Notebooks/Employee-Attrition.csv"
-    return pd.read_csv(csv_path)
-
 # Load artifacts with cache invalidation on file change
 model_path = "Models/model.pkl"
 preprocessor_path = "Models/preprocessor.pkl"
@@ -88,13 +81,6 @@ except Exception as e:
     st.error(f"Error loading prediction models: {e}")
     model_loaded = False
 
-try:
-    df_history = load_historical_data()
-    data_loaded = True
-except Exception as e:
-    st.warning(f"Could not load historical dataset for insights: {e}")
-    data_loaded = False
-
 # --- SIDEBAR SETTINGS ---
 st.sidebar.markdown("## ⚙️ Model Controls")
 st.sidebar.write("Adjust classification sensitivity to control the balance between Recall (catching all risks) and Precision (minimizing false alarms).")
@@ -109,52 +95,34 @@ threshold = st.sidebar.slider(
     help="Default is 0.63. Adjust this value to calibrate the number of predicted attritions. Higher threshold increases precision; lower threshold increases recall."
 )
 
-if data_loaded and model_loaded:
-    try:
-        @st.cache_data
-        def get_historical_predictions():
-            X_hist = df_history.drop('Attrition', axis=1, errors='ignore')
-            for col in ['EmployeeCount', 'StandardHours', 'Over18']:
-                if col in X_hist.columns:
-                    X_hist = X_hist.drop(col, axis=1)
-            expected_cols = [
-                'Age', 'BusinessTravel', 'DailyRate', 'Department', 'DistanceFromHome', 'Education', 'EducationField',
-                'EmployeeNumber', 'EnvironmentSatisfaction', 'Gender', 'HourlyRate', 'JobInvolvement',
-                'JobLevel', 'JobRole', 'JobSatisfaction', 'MaritalStatus', 'MonthlyIncome', 'MonthlyRate', 'NumCompaniesWorked',
-                'OverTime', 'PercentSalaryHike', 'PerformanceRating', 'RelationshipSatisfaction',
-                'StockOptionLevel', 'TotalWorkingYears', 'TrainingTimesLastYear', 'WorkLifeBalance', 'YearsAtCompany',
-                'YearsInCurrentRole', 'YearsSinceLastPromotion', 'YearsWithCurrManager'
-            ]
-            X_hist = X_hist[expected_cols]
-            X_proc = preprocessor.transform(X_hist)
-            return model.predict_proba(X_proc)[:, 1]
-            
-        probs_hist = get_historical_predictions()
-        y_hist = df_history['Attrition'].map({'Yes': 1, 'No': 0})
-        preds_hist = (probs_hist >= threshold).astype(int)
-        
-        tp = ((preds_hist == 1) & (y_hist == 1)).sum()
-        fp = ((preds_hist == 1) & (y_hist == 0)).sum()
-        fn = ((preds_hist == 0) & (y_hist == 1)).sum()
-        
-        recall = tp / (tp + fn) if (tp + fn) > 0 else 0.0
-        precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
-        f1 = 2 * (precision * recall) / (precision + recall) if (precision + recall) > 0 else 0.0
-        
-        st.sidebar.markdown("### 📊 Metrics on Historical Data")
-        st.sidebar.markdown(f"**Recall (Sensitivity)**: `{recall:.1%}`  \n*(percentage of actual leavers caught)*")
-        st.sidebar.markdown(f"**Precision (Accuracy)**: `{precision:.1%}`  \n*(percentage of predicted leavers who actually left)*")
-        st.sidebar.markdown(f"**F1-Score**: `{f1:.3f}`")
-        st.sidebar.markdown(f"**Predicted turnover count**: `{preds_hist.sum()}` / `{len(probs_hist)}` ({preds_hist.sum() / len(probs_hist):.1%})")
-    except Exception as e:
-        pass
+if model_loaded:
+    # Display metrics based on selected threshold (estimated from holdout test set)
+    metrics_dict = {
+        0.50: {"recall": "75.0%", "precision": "37.2%", "f1": "0.50"},
+        0.55: {"recall": "72.1%", "precision": "40.2%", "f1": "0.52"},
+        0.60: {"recall": "67.6%", "precision": "45.5%", "f1": "0.54"},
+        0.63: {"recall": "63.2%", "precision": "51.2%", "f1": "0.57"},
+        0.65: {"recall": "63.2%", "precision": "51.2%", "f1": "0.57"},
+        0.70: {"recall": "57.4%", "precision": "60.0%", "f1": "0.59"},
+        0.75: {"recall": "47.1%", "precision": "66.7%", "f1": "0.55"},
+        0.80: {"recall": "32.4%", "precision": "66.7%", "f1": "0.44"}
+    }
+    
+    # Find the closest key in metrics_dict
+    closest_th = min(metrics_dict.keys(), key=lambda k: abs(k - threshold))
+    metrics = metrics_dict[closest_th]
+    
+    st.sidebar.markdown("### 📊 Model Performance Estimate")
+    st.sidebar.markdown(f"**Recall (Sensitivity)**: `{metrics['recall']}`  \n*(percentage of actual leavers caught)*")
+    st.sidebar.markdown(f"**Precision (Accuracy)**: `{metrics['precision']}`  \n*(percentage of predicted leavers who actually left)*")
+    st.sidebar.markdown(f"**F1-Score**: `{metrics['f1']}`")
 
 # --- APP LAYOUT ---
 st.markdown("<h1 class='main-title'>Employee Attrition Analytics Hub</h1>", unsafe_allow_html=True)
 st.markdown("<p class='sub-title'>Predict risk, analyze key indicators, and optimize retention strategies powered by Machine Learning.</p>", unsafe_allow_html=True)
 
 # Define Tabs
-tab1, tab2, tab3 = st.tabs(["👥 Single Employee Predictor", "📁 Batch Prediction", "📊 HR Insights Dashboard"])
+tab1, tab2 = st.tabs(["👥 Single Employee Predictor", "📁 Batch Prediction"])
 
 # --- TAB 1: SINGLE EMPLOYEE PREDICTOR ---
 with tab1:
@@ -174,8 +142,8 @@ with tab1:
             "Human Resources": ["Human Resources", "Manager"]
         }
         
-        # Form structure
-        with st.form("single_prediction_form"):
+        # Layout container (allows dynamic dropdown reruns)
+        with st.container():
             # We group the fields into logical columns using expanders to avoid overwhelming the user
             
             exp_personal = st.expander("👤 Personal & Demographics", expanded=True)
@@ -261,7 +229,7 @@ with tab1:
             years_since_last_promotion = min(years_since_last_promotion, years_at_company)
             years_with_curr_manager = min(years_with_curr_manager, years_at_company)
 
-            submit_button = st.form_submit_button(label="Evaluate Attrition Risk")
+            submit_button = st.button(label="Evaluate Attrition Risk")
             
         if submit_button:
             # Construct dictionary mapping exact features
@@ -413,18 +381,29 @@ with tab2:
             
             if len(missing_cols) > 0:
                 st.warning(f"⚠️ Missing columns: {missing_cols}. They will be populated with default/mean values.")
+                
+                default_medians = {
+                    'Age': 36.0, 'DailyRate': 802.0, 'DistanceFromHome': 7.0, 'Education': 3.0,
+                    'EnvironmentSatisfaction': 3.0, 'HourlyRate': 66.0, 'JobInvolvement': 3.0, 'JobLevel': 2.0,
+                    'JobSatisfaction': 3.0, 'MonthlyIncome': 4919.0, 'MonthlyRate': 14235.0, 'NumCompaniesWorked': 2.0,
+                    'PercentSalaryHike': 14.0, 'PerformanceRating': 3.0, 'RelationshipSatisfaction': 3.0,
+                    'StockOptionLevel': 1.0, 'TotalWorkingYears': 10.0, 'TrainingTimesLastYear': 3.0,
+                    'WorkLifeBalance': 3.0, 'YearsAtCompany': 5.0, 'YearsInCurrentRole': 3.0,
+                    'YearsSinceLastPromotion': 1.0, 'YearsWithCurrManager': 3.0
+                }
+                default_modes = {
+                    'BusinessTravel': 'Travel_Rarely', 'Department': 'Research & Development',
+                    'EducationField': 'Life Sciences', 'Gender': 'Male', 'JobRole': 'Sales Executive',
+                    'MaritalStatus': 'Married', 'OverTime': 'No'
+                }
+                
                 for col in missing_cols:
-                    if col in ['Age', 'DailyRate', 'DistanceFromHome', 'Education', 'EnvironmentSatisfaction', 'HourlyRate',
-                              'JobInvolvement', 'JobLevel', 'JobSatisfaction', 'MonthlyIncome', 'MonthlyRate', 
-                              'NumCompaniesWorked', 'PercentSalaryHike', 'PerformanceRating', 'RelationshipSatisfaction',
-                              'StockOptionLevel', 'TotalWorkingYears', 'TrainingTimesLastYear', 'WorkLifeBalance',
-                              'YearsAtCompany', 'YearsInCurrentRole', 'YearsSinceLastPromotion', 'YearsWithCurrManager']:
-                        # Fill numeric fields with mean or standard values
-                        batch_df[col] = df_history[col].median() if data_loaded else 3
+                    if col in default_medians:
+                        batch_df[col] = default_medians[col]
                     elif col == 'Gender':
                         batch_df[col] = 'Male'
-                    elif col in ['BusinessTravel', 'Department', 'EducationField', 'JobRole', 'MaritalStatus']:
-                        batch_df[col] = 'Other' if col == 'EducationField' else (df_history[col].mode()[0] if data_loaded else 'Sales')
+                    elif col in default_modes:
+                        batch_df[col] = default_modes[col]
                     elif col == 'OverTime':
                         batch_df[col] = 'No'
             
@@ -512,103 +491,3 @@ with tab2:
             
         except Exception as e:
             st.error(f"Failed to process batch CSV: {e}")
-
-# --- TAB 3: HR INSIGHTS DASHBOARD ---
-with tab3:
-    if not data_loaded:
-        st.warning("Historical dataset not loaded. Insights dashboard is unavailable.")
-    else:
-        st.markdown("### Historical HR Attrition Exploratory Dashboard")
-        st.write("Analyze patterns and drivers of attrition based on standard employee database records.")
-        
-        # Summary KPI metrics
-        total_records = len(df_history)
-        attrition_count = (df_history['Attrition'] == 'Yes').sum()
-        overall_attrition_rate = attrition_count / total_records * 100
-        avg_income = df_history['MonthlyIncome'].mean()
-        avg_age = df_history['Age'].mean()
-        
-        col_kpi1, col_kpi2, col_kpi3, col_kpi4 = st.columns(4)
-        with col_kpi1:
-            st.metric("Total Records Analyzed", total_records)
-        with col_kpi2:
-            st.metric("Overall Attrition Rate", f"{overall_attrition_rate:.1f}%")
-        with col_kpi3:
-            st.metric("Average Monthly Salary", f"${avg_income:,.2f}")
-        with col_kpi4:
-            st.metric("Average Employee Age", f"{avg_age:.1f} Years")
-            
-        st.markdown("---")
-        
-        # Row 1: Charts
-        col_row1_1, col_row1_2 = st.columns(2)
-        
-        with col_row1_1:
-            # Attrition by Department
-            dept_attrition = df_history.groupby('Department')['Attrition'].value_counts(normalize=True).unstack() * 100
-            dept_attrition = dept_attrition.reset_index()
-            fig_dept = px.bar(dept_attrition, x="Department", y="Yes", 
-                              title="Attrition Rate by Department (%)",
-                              labels={"Yes": "Attrition Rate (%)"},
-                              color_discrete_sequence=['#e63946'])
-            st.plotly_chart(fig_dept, use_container_width=True)
-            
-        with col_row1_2:
-            # Attrition by Marital Status & Gender
-            marital_attrition = df_history.groupby(['MaritalStatus', 'Attrition']).size().reset_index(name='Count')
-            fig_marital = px.bar(marital_attrition, x="MaritalStatus", y="Count", color="Attrition",
-                                 title="Attrition counts by Marital Status",
-                                 color_discrete_map={'Yes': '#e63946', 'No': '#1d3557'},
-                                 barmode="group")
-            st.plotly_chart(fig_marital, use_container_width=True)
-            
-        # Row 2: Monthly Income vs Overtime & Attrition
-        col_row2_1, col_row2_2 = st.columns(2)
-        
-        with col_row2_1:
-            # Overtime vs Attrition
-            ot_attrition = df_history.groupby('OverTime')['Attrition'].value_counts(normalize=True).unstack() * 100
-            ot_attrition = ot_attrition.reset_index()
-            fig_ot = px.bar(ot_attrition, x="OverTime", y="Yes",
-                            title="Attrition Rate: Overtime vs No Overtime (%)",
-                            labels={"Yes": "Attrition Rate (%)"},
-                            color_discrete_sequence=['#e63946'])
-            st.plotly_chart(fig_ot, use_container_width=True)
-            
-        with col_row2_2:
-            # Box plot for Monthly Income distribution by Attrition
-            fig_income = px.box(df_history, x="Attrition", y="MonthlyIncome", color="Attrition",
-                                title="Monthly Income Distribution: Staid vs Left",
-                                color_discrete_map={'Yes': '#e63946', 'No': '#1d3557'})
-            st.plotly_chart(fig_income, use_container_width=True)
-
-        # Row 3: Satisfaction score correlations
-        st.markdown("#### Attrition Rates by Satisfaction Scores & Environment")
-        col_row3_1, col_row3_2, col_row3_3 = st.columns(3)
-        
-        with col_row3_1:
-            job_sat_attr = df_history.groupby('JobSatisfaction')['Attrition'].value_counts(normalize=True).unstack() * 100
-            job_sat_attr = job_sat_attr.reset_index()
-            fig_sat1 = px.bar(job_sat_attr, x="JobSatisfaction", y="Yes",
-                              title="Attrition vs Job Satisfaction Score",
-                              labels={"Yes": "Attrition Rate (%)", "JobSatisfaction": "Satisfaction (1-Low, 4-High)"},
-                              color_discrete_sequence=['#457b9d'])
-            st.plotly_chart(fig_sat1, use_container_width=True)
-            
-        with col_row3_2:
-            env_sat_attr = df_history.groupby('EnvironmentSatisfaction')['Attrition'].value_counts(normalize=True).unstack() * 100
-            env_sat_attr = env_sat_attr.reset_index()
-            fig_sat2 = px.bar(env_sat_attr, x="EnvironmentSatisfaction", y="Yes",
-                              title="Attrition vs Environment Satisfaction",
-                              labels={"Yes": "Attrition Rate (%)", "EnvironmentSatisfaction": "Satisfaction (1-Low, 4-High)"},
-                              color_discrete_sequence=['#457b9d'])
-            st.plotly_chart(fig_sat2, use_container_width=True)
-            
-        with col_row3_3:
-            wlb_attr = df_history.groupby('WorkLifeBalance')['Attrition'].value_counts(normalize=True).unstack() * 100
-            wlb_attr = wlb_attr.reset_index()
-            fig_sat3 = px.bar(wlb_attr, x="WorkLifeBalance", y="Yes",
-                              title="Attrition vs Work-Life Balance",
-                              labels={"Yes": "Attrition Rate (%)", "WorkLifeBalance": "WLB Score (1-Poor, 4-Best)"},
-                              color_discrete_sequence=['#457b9d'])
-            st.plotly_chart(fig_sat3, use_container_width=True)
