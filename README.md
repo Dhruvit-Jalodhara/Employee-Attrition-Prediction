@@ -33,8 +33,6 @@ Employee Attrition Prediction/
 ├── app.py                      # Main Streamlit web application dashboard
 ├── requirements.txt            # Python library dependencies
 ├── README.md                   # Project documentation and user guide
-├── Model_Training_Review.md    # Detailed ML engineering review and loop bug analysis
-├── corrected_model_training.py # Refactored standalone python retraining pipeline
 ├── Models/
 │   ├── model.pkl               # Serialized Tuned Logistic Regression classifier
 │   └── preprocessor.pkl        # Serialized ColumnTransformer preprocessing pipeline
